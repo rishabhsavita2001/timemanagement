@@ -3,14 +3,14 @@ const { Pool } = require('pg');
 // Database Connection Pool - optimized for serverless
 const pool = new Pool({
   host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
+  port: parseInt(process.env.DB_PORT) || 5432,
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  max: process.env.VERCEL ? 5 : 20, // Reduce pool size for serverless
+  password: String(process.env.DB_PASSWORD || ''), // Ensure password is a string
+  ssl: { rejectUnauthorized: false }, // Always use SSL for external databases
+  max: process.env.VERCEL ? 3 : 20, // Reduce pool size for serverless
   idleTimeoutMillis: process.env.VERCEL ? 10000 : 30000, // Shorter timeout for serverless
-  connectionTimeoutMillis: process.env.VERCEL ? 5000 : 2000, // Longer timeout for cold starts
+  connectionTimeoutMillis: process.env.VERCEL ? 8000 : 2000, // Longer timeout for cold starts
   keepAlive: true,
   keepAliveInitialDelayMillis: 10000
 });
