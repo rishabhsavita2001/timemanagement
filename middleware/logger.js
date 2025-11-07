@@ -1,7 +1,7 @@
 const winston = require('winston');
 const path = require('path');
 
-// Create winston logger
+// Create winston logger - optimized for serverless
 const logger = winston.createLogger({
   level: process.env.LOG_LEVEL || 'info',
   format: winston.format.combine(
@@ -11,25 +11,24 @@ const logger = winston.createLogger({
   ),
   defaultMeta: { service: 'working-time-api' },
   transports: [
-    // Write all logs with level `error` and below to `error.log`
-    new winston.transports.File({ 
-      filename: path.join(__dirname, '../logs/error.log'), 
-      level: 'error' 
-    }),
-    // Write all logs with level `info` and below to `combined.log`
-    new winston.transports.File({ 
-      filename: path.join(__dirname, '../logs/combined.log') 
+    // Use console logging for Vercel serverless compatibility
+    new winston.transports.Console({
+      format: winston.format.combine(
+        winston.format.colorize(),
+        winston.format.simple()
+      )
     })
   ]
 });
 
-// If we're not in production, log to the console as well
-if (process.env.NODE_ENV !== 'production') {
-  logger.add(new winston.transports.Console({
-    format: winston.format.combine(
-      winston.format.colorize(),
-      winston.format.simple()
-    )
+// Only add file logging in local development
+if (process.env.NODE_ENV === 'development' && !process.env.VERCEL) {
+  logger.add(new winston.transports.File({ 
+    filename: path.join(__dirname, '../logs/error.log'), 
+    level: 'error' 
+  }));
+  logger.add(new winston.transports.File({ 
+    filename: path.join(__dirname, '../logs/combined.log') 
   }));
 }
 

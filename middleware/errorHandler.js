@@ -1,8 +1,13 @@
 // Global Error Handler
 const errorHandler = (err, req, res, next) => {
+  // Ensure we have a response object and haven't already sent headers
+  if (res.headersSent) {
+    return next(err);
+  }
+
   console.error('Error:', {
     message: err.message,
-    stack: err.stack,
+    stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
     url: req.originalUrl,
     method: req.method,
     timestamp: new Date().toISOString(),
@@ -11,7 +16,7 @@ const errorHandler = (err, req, res, next) => {
   });
 
   // Database connection errors
-  if (err.code === 'ECONNREFUSED') {
+  if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
     return res.status(503).json({
       error: 'Database Connection Error',
       message: 'Unable to connect to database. Please try again later.'
@@ -51,7 +56,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // Default error
-  const statusCode = err.statusCode || 500;
+  const statusCode = err.statusCode || err.status || 500;
   const message = process.env.NODE_ENV === 'production' 
     ? 'Internal server error' 
     : err.message;

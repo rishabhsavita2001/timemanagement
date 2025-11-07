@@ -1,6 +1,6 @@
 const { Pool } = require('pg');
 
-// Database Connection Pool
+// Database Connection Pool - optimized for serverless
 const pool = new Pool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
@@ -8,9 +8,11 @@ const pool = new Pool({
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   ssl: process.env.DB_SSL === 'true' ? { rejectUnauthorized: false } : false,
-  max: 20, // Maximum number of clients in the pool
-  idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
-  connectionTimeoutMillis: 2000, // Return error after 2 seconds if connection could not be established
+  max: process.env.VERCEL ? 5 : 20, // Reduce pool size for serverless
+  idleTimeoutMillis: process.env.VERCEL ? 10000 : 30000, // Shorter timeout for serverless
+  connectionTimeoutMillis: process.env.VERCEL ? 5000 : 2000, // Longer timeout for cold starts
+  keepAlive: true,
+  keepAliveInitialDelayMillis: 10000
 });
 
 // Set session variables for Row Level Security
@@ -69,12 +71,19 @@ const testConnection = async () => {
     return true;
   } catch (error) {
     console.error('❌ Database connection failed:', error.message);
+    // Don't crash in serverless environment, just log the error
+    if (process.env.VERCEL) {
+      console.warn('⚠️ Running in serverless mode, database will be tested on first request');
+      return false;
+    }
     return false;
   }
 };
 
-// Initialize database connection
-testConnection();
+// Initialize database connection (skip in serverless cold starts)
+if (!process.env.VERCEL) {
+  testConnection();
+}
 
 module.exports = {
   pool,

@@ -4,6 +4,24 @@ const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
+// Environment validation
+const requiredEnvVars = [
+  'JWT_SECRET',
+  'DB_HOST',
+  'DB_PORT',
+  'DB_NAME',
+  'DB_USER',
+  'DB_PASSWORD'
+];
+
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+if (missingEnvVars.length > 0) {
+  console.error('Missing required environment variables:', missingEnvVars);
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+}
+
 const authRoutes = require('./routes/auth');
 const apiRoutes = require('./routes/api');
 const { errorHandler } = require('./middleware/errorHandler');
@@ -45,9 +63,22 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Routes
-app.use('/auth', authRoutes);
-app.use('/api', apiRoutes);
+// Routes - with error handling
+try {
+  app.use('/auth', authRoutes);
+  app.use('/api', apiRoutes);
+} catch (error) {
+  console.error('Error loading routes:', error);
+  if (process.env.NODE_ENV === 'production') {
+    // In production, send a more generic error
+    app.use('*', (req, res) => {
+      res.status(500).json({
+        error: 'Service temporarily unavailable',
+        message: 'Please try again later'
+      });
+    });
+  }
+}
 
 // 404 Handler
 app.use('*', (req, res) => {
