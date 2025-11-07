@@ -18,14 +18,44 @@ const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingEnvVars.length > 0) {
   console.error('Missing required environment variables:', missingEnvVars);
   if (process.env.NODE_ENV === 'production') {
-    process.exit(1);
+    // Don't exit in serverless, just log and continue
+    console.warn('⚠️ Missing env vars, some features may not work');
   }
 }
 
-const authRoutes = require('./routes/auth');
-const apiRoutes = require('./routes/api');
+// Import routes with error handling
+let authRoutes, apiRoutes;
+try {
+  authRoutes = require('./routes/auth');
+  apiRoutes = require('./routes/api');
+} catch (error) {
+  console.error('Error loading routes:', error.message);
+  // Create dummy routes if main routes fail
+  authRoutes = require('express').Router();
+  apiRoutes = require('express').Router();
+  
+  authRoutes.use('*', (req, res) => {
+    res.status(503).json({ error: 'Auth service temporarily unavailable' });
+  });
+  
+  apiRoutes.use('*', (req, res) => {
+    res.status(503).json({ error: 'API service temporarily unavailable' });
+  });
+}
+
 const { errorHandler } = require('./middleware/errorHandler');
-const { requestLogger } = require('./middleware/logger');
+
+// Import logger with fallback
+let requestLogger;
+try {
+  requestLogger = require('./middleware/logger').requestLogger;
+} catch (error) {
+  console.error('Error loading logger:', error.message);
+  requestLogger = (req, res, next) => {
+    console.log(`${req.method} ${req.url}`);
+    next();
+  };
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -59,7 +89,29 @@ app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: process.env.npm_package_version || '1.0.0'
+    version: process.env.npm_package_version || '1.0.0',
+    environment: process.env.NODE_ENV,
+    vercel: !!process.env.VERCEL
+  });
+});
+
+// Debug endpoint for environment variables
+app.get('/debug', (req, res) => {
+  const envVars = {
+    NODE_ENV: process.env.NODE_ENV,
+    VERCEL: process.env.VERCEL,
+    DB_HOST: process.env.DB_HOST ? 'SET' : 'MISSING',
+    DB_PORT: process.env.DB_PORT ? 'SET' : 'MISSING',
+    DB_NAME: process.env.DB_NAME ? 'SET' : 'MISSING',
+    DB_USER: process.env.DB_USER ? 'SET' : 'MISSING',
+    DB_PASSWORD: process.env.DB_PASSWORD ? 'SET' : 'MISSING',
+    JWT_SECRET: process.env.JWT_SECRET ? 'SET' : 'MISSING'
+  };
+  
+  res.status(200).json({
+    status: 'debug',
+    environment: envVars,
+    timestamp: new Date().toISOString()
   });
 });
 

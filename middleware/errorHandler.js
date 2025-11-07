@@ -1,22 +1,15 @@
 // Global Error Handler
 const errorHandler = (err, req, res, next) => {
-  // Ensure we have a response object and haven't already sent headers
-  if (res.headersSent) {
-    return next(err);
-  }
-
-  console.error('Error:', {
+  // Simple console logging for Vercel
+  console.error('Error occurred:', {
     message: err.message,
-    stack: process.env.NODE_ENV !== 'production' ? err.stack : undefined,
     url: req.originalUrl,
     method: req.method,
-    timestamp: new Date().toISOString(),
-    userId: req.user?.id,
-    tenantId: req.user?.tenantId
+    timestamp: new Date().toISOString()
   });
 
   // Database connection errors
-  if (err.code === 'ECONNREFUSED' || err.code === 'ENOTFOUND') {
+  if (err.code === 'ECONNREFUSED') {
     return res.status(503).json({
       error: 'Database Connection Error',
       message: 'Unable to connect to database. Please try again later.'
@@ -50,22 +43,23 @@ const errorHandler = (err, req, res, next) => {
   if (err.name === 'ValidationError') {
     return res.status(400).json({
       error: 'Validation Error',
-      message: err.message,
-      details: err.details
+      message: err.message
     });
   }
 
-  // Default error
-  const statusCode = err.statusCode || err.status || 500;
+  // Default error - simplified for serverless
+  const statusCode = err.statusCode || 500;
   const message = process.env.NODE_ENV === 'production' 
     ? 'Internal server error' 
     : err.message;
 
-  res.status(statusCode).json({
-    error: 'Server Error',
-    message: message,
-    ...(process.env.NODE_ENV !== 'production' && { stack: err.stack })
-  });
+  // Make sure we don't have response header issues
+  if (!res.headersSent) {
+    res.status(statusCode).json({
+      error: 'Server Error',
+      message: message
+    });
+  }
 };
 
 // Async error wrapper
